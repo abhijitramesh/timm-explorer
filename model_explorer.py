@@ -24,6 +24,8 @@ filtered_df = df.copy()
 max_params = np.ceil(df['parameters'].max())
 param_range = [0, max_params]
 search_text = ""
+min_param_input = 0
+max_param_input = max_params
 
 def on_init(state: State):
     """Initialize the state when the app starts"""
@@ -32,6 +34,8 @@ def on_init(state: State):
     state.param_range = param_range
     state.search_text = search_text
     state.max_params = max_params
+    state.min_param_input = min_param_input
+    state.max_param_input = max_param_input
 
 def filter_models(state: State):
     """Filter models based on parameter range and categories"""
@@ -49,28 +53,78 @@ def filter_models(state: State):
     
     state.filtered_df = state.df[mask].copy()
 
+def on_param_input_change(state: State):
+    """Handle changes to the parameter input boxes"""
+    try:
+        # Convert input values to float
+        min_val = float(state.min_param_input)
+        max_val = float(state.max_param_input)
+        
+        # Ensure values are within valid range
+        state.min_param_input = max(0, min(min_val, state.max_params))
+        state.max_param_input = max(0, min(max_val, state.max_params))
+        
+        # Update slider
+        state.param_range = [state.min_param_input, state.max_param_input]
+        filter_models(state)
+    except (ValueError, TypeError):
+        # Reset to previous values if conversion fails
+        state.min_param_input = state.param_range[0]
+        state.max_param_input = state.param_range[1]
+
+def on_slider_change(state: State):
+    """Handle changes to the slider"""
+    # Update input boxes
+    state.min_param_input = state.param_range[0]
+    state.max_param_input = state.param_range[1]
+    filter_models(state)
+
+# Add styling configuration
+stylekit = {
+    "color_primary": "#2962ff",
+    "color_secondary": "#455a64",
+    "color_background_light": "#ffffff",
+    "color_background_dark": "#1a1a1a",
+}
+
 page = """
 <|container|
+<|part|class_name=model-explorer-container|
 # TIMM Model Explorer
 
-<|layout|columns=1|gap=30px|
-<|
+<|layout|columns=1 gap=30px|
+<|part|class_name=stats-card|
 ## Parameter Range
 Select model size range (in millions of parameters):
-<|{param_range}|slider|min=0|max={max_params}|value_by_id=False|on_change=filter_models|>
+<|{param_range}|slider|min=0|max={max_params}|value_by_id=False|on_change=on_slider_change|>
+
+<|layout|columns=2 gap=10px|
+<|{min_param_input}|input|label=Min Parameters (M)|type=number|on_change=on_param_input_change|>
+<|{max_param_input}|input|label=Max Parameters (M)|type=number|on_change=on_param_input_change|>
 |>
 |>
 
+<|part|class_name=stats-card|
 ## Search & Results
 <|{search_text}|input|label=Search models by name|on_change=filter_models|>
 
-### Found <|{len(filtered_df)}|> models matching your criteria
+Found <|{len(filtered_df)}|> models matching your criteria
 
-<|{filtered_df}|table|width=100%|page_size=10|>
+<|{filtered_df}|table|width=100%|page_size=10|class_name=taipy-table|>
+|>
+|>
+|>
 |>
 """
 
 if __name__ == "__main__":
     print("Starting Taipy GUI...")
     gui = Gui(page)
-    gui.run(host="127.0.0.1", port=5050, on_init=on_init) 
+    gui.run(
+        host="127.0.0.1", 
+        port=5050, 
+        on_init=on_init,
+        stylekit=stylekit,
+        title="TIMM Model Explorer",
+        css_file="static/styles.css"
+    ) 
