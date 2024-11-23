@@ -1,10 +1,18 @@
 [project]
 name = "timm-explorer"
 version = "0.1.0"
-description = "Add your description here"
+description = "A Taipy web application for exploring TIMM models"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "taipy-gui>=3.0.0",
+    "timm==0.9.12",
+    "pandas==2.2.0",
+    "torch==2.2.0",
+    "numpy==1.26.4",
+]
+
+[tool.uv]
+dev-dependencies = [
     "ruff>=0.8.0",
-    "timm>=1.0.11",
 ]
