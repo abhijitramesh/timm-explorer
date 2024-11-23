@@ -1,30 +1,28 @@
-from taipy.gui import Gui, State, notify
+from taipy.gui import Gui, State
 import pandas as pd
-import timm
-import torch
 import numpy as np
+from pathlib import Path
+
+# Load the pre-generated model stats
+MODEL_STATS_PATH = "model_stats.parquet"
+
+def load_model_stats():
+    """Load model statistics from parquet file"""
+    if not Path(MODEL_STATS_PATH).exists():
+        raise FileNotFoundError(
+            f"Model stats file not found at {MODEL_STATS_PATH}. "
+            "Please run model_stats_generator.py first!"
+        )
+    return pd.read_parquet(MODEL_STATS_PATH)
 
 # Initialize data
-print("Fetching model information from TIMM...")
-model_names = timm.list_models(pretrained=True)[:30]  # Limit to 30 models
-
-data = []
-for name in model_names:
-    try:
-        model = timm.create_model(name, pretrained=False)
-        params = sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6
-        category = name.split('_')[0]
-        data.append({'name': name, 'parameters': params, 'category': category})
-    except Exception as e:
-        print(f"Error loading {name}: {e}")
-
-df = pd.DataFrame(data)
+print("Loading model information...")
+df = load_model_stats()
 filtered_df = df.copy()
 
 # Initial state variables
 max_params = np.ceil(df['parameters'].max())
 param_range = [0, max_params]
-selected_categories = list(df['category'].unique())
 search_text = ""
 
 def on_init(state: State):
@@ -32,7 +30,6 @@ def on_init(state: State):
     state.df = df
     state.filtered_df = df.copy()
     state.param_range = param_range
-    state.selected_categories = selected_categories
     state.search_text = search_text
     state.max_params = max_params
 
@@ -43,8 +40,7 @@ def filter_models(state: State):
     # Apply filters
     mask = (
         (state.df['parameters'] >= min_param) & 
-        (state.df['parameters'] <= max_param) &
-        (state.df['category'].isin(state.selected_categories))
+        (state.df['parameters'] <= max_param)
     )
     
     # Apply search filter if there's search text
@@ -57,16 +53,11 @@ page = """
 <|container|
 # TIMM Model Explorer
 
-<|layout|columns=1 1|gap=30px|
+<|layout|columns=1|gap=30px|
 <|
 ## Parameter Range
 Select model size range (in millions of parameters):
 <|{param_range}|slider|min=0|max={max_params}|value_by_id=False|on_change=filter_models|>
-|>
-
-<|
-## Model Categories
-<|{selected_categories}|selector|lov={list(df['category'].unique())}|on_change=filter_models|label=Select model categories|multiple|>
 |>
 |>
 
