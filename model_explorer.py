@@ -1,73 +1,85 @@
-from taipy.gui import Gui
+from taipy.gui import Gui, State, notify
 import pandas as pd
 import timm
 import torch
-from typing import Dict, List
 import numpy as np
 
-def count_parameters(model: torch.nn.Module) -> float:
-    """Count trainable parameters in millions"""
-    return sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6
-
-def get_model_info() -> Dict[str, List]:
-    """Fetch model information from TIMM"""
-    models_data = {
-        'name': [],
-        'parameters': [],
-    }
-    
-    # Get all pretrained model names
-    model_names = timm.list_models(pretrained=True)[:30]
-    
-    # Sample a subset of models for faster loading (remove this limit for production)
-    for model_name in model_names:  # Limiting to 30 models for demonstration
-        try:
-            # Create model instance
-            model = timm.create_model(model_name, pretrained=False)
-            
-            # Get model details
-            models_data['name'].append(model_name)
-            models_data['parameters'].append(count_parameters(model))
-                
-            
-        except Exception as e:
-            print(f"Skipping {model_name} due to: {str(e)}")
-            continue
-    
-    return models_data
-
-# Fetch real model data
+# Initialize data
 print("Fetching model information from TIMM...")
-models_data = get_model_info()
-df = pd.DataFrame(models_data)
+model_names = timm.list_models(pretrained=True)[:30]  # Limit to 30 models
 
-# Calculate max parameters for slider
-max_params = np.ceil(df['parameters'].max())
+data = []
+for name in model_names:
+    try:
+        model = timm.create_model(name, pretrained=False)
+        params = sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6
+        category = name.split('_')[0]
+        data.append({'name': name, 'parameters': params, 'category': category})
+    except Exception as e:
+        print(f"Error loading {name}: {e}")
+
+df = pd.DataFrame(data)
+filtered_df = df.copy()
 
 # Initial state variables
-param_range = [0, max_params]  # Initial range for parameters (in millions)
-filtered_df = df  # Initially show all models
+max_params = np.ceil(df['parameters'].max())
+param_range = [0, max_params]
+selected_categories = list(df['category'].unique())
+search_text = ""
 
-def filter_models(state):
-    """Filter models based on parameter range"""
+def on_init(state: State):
+    """Initialize the state when the app starts"""
+    state.df = df
+    state.filtered_df = df.copy()
+    state.param_range = param_range
+    state.selected_categories = selected_categories
+    state.search_text = search_text
+    state.max_params = max_params
+
+def filter_models(state: State):
+    """Filter models based on parameter range and categories"""
     min_param, max_param = state.param_range
-    state.filtered_df = df[
-        (df['parameters'] >= min_param) & 
-        (df['parameters'] <= max_param)].copy()
+    
+    # Apply filters
+    mask = (
+        (state.df['parameters'] >= min_param) & 
+        (state.df['parameters'] <= max_param) &
+        (state.df['category'].isin(state.selected_categories))
+    )
+    
+    # Apply search filter if there's search text
+    if state.search_text:
+        mask &= state.df['name'].str.contains(state.search_text, case=False)
+    
+    state.filtered_df = state.df[mask].copy()
 
-# Create the page layout
 page = """
+<|container|
 # TIMM Model Explorer
 
-## Parameter Range Selection
+<|layout|columns=1 1|gap=30px|
+<|
+## Parameter Range
 Select model size range (in millions of parameters):
 <|{param_range}|slider|min=0|max={max_params}|value_by_id=False|on_change=filter_models|>
+|>
 
+<|
+## Model Categories
+<|{selected_categories}|selector|lov={list(df['category'].unique())}|on_change=filter_models|label=Select model categories|multiple|>
+|>
+|>
 
-## Models in Selected Range
-<|{filtered_df}|table|width=100%|>
+## Search & Results
+<|{search_text}|input|label=Search models by name|on_change=filter_models|>
+
+### Found <|{len(filtered_df)}|> models matching your criteria
+
+<|{filtered_df}|table|width=100%|page_size=10|>
+|>
 """
 
 if __name__ == "__main__":
     print("Starting Taipy GUI...")
-    Gui(page).run(host="127.0.0.1", port=5050) 
+    gui = Gui(page)
+    gui.run(host="127.0.0.1", port=5050, on_init=on_init) 
