@@ -79,13 +79,6 @@ def on_slider_change(state: State):
     state.max_param_input = state.param_range[1]
     filter_models(state)
 
-# Add styling configuration
-stylekit = {
-    "color_primary": "#2962ff",
-    "color_secondary": "#455a64",
-    "color_background_light": "#ffffff",
-    "color_background_dark": "#1a1a1a",
-}
 
 page = """
 <|container|
@@ -98,7 +91,7 @@ page = """
 Select model size range (in millions of parameters):
 <|{param_range}|slider|min=0|max={max_params}|value_by_id=False|on_change=on_slider_change|>
 
-<|layout|columns=2 gap=10px|
+<|layout|columns=2 gap=10px|class_name=parameter-inputs|
 <|{min_param_input}|input|label=Min Parameters (M)|type=number|on_change=on_param_input_change|>
 <|{max_param_input}|input|label=Max Parameters (M)|type=number|on_change=on_param_input_change|>
 |>
@@ -110,7 +103,7 @@ Select model size range (in millions of parameters):
 
 Found <|{len(filtered_df)}|> models matching your criteria
 
-<|{filtered_df}|table|width=100%|page_size=10|class_name=taipy-table|>
+<|{filtered_df}|table|width=100%|page_size=10|>
 |>
 |>
 |>
@@ -124,7 +117,5 @@ if __name__ == "__main__":
         host="127.0.0.1", 
         port=5050, 
         on_init=on_init,
-        stylekit=stylekit,
-        title="TIMM Model Explorer",
-        css_file="static/styles.css"
+        title="TIMM Model Explorer"
     ) 
